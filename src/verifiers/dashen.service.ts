@@ -1,6 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import axios, { AxiosResponse } from 'axios';
-import * as https from 'https';
+import { UPSTREAM_TIMEOUT_MS, httpAgent, insecureHttpsAgent } from '../common/http';
 import pdf = require('pdf-parse');
 import { titleCase } from './verify-result.interface';
 
@@ -36,7 +36,6 @@ export class DashenService {
 
     async verify(transactionReference: string): Promise<DashenVerifyResult> {
         const url = `https://receipt.dashensuperapp.com/receipt/${transactionReference}`;
-        const httpsAgent = new https.Agent({ rejectUnauthorized: false });
         const maxRetries = 5;
         const retryDelay = 2000;
 
@@ -44,23 +43,28 @@ export class DashenService {
             try {
                 this.logger.log(`Fetching Dashen receipt (attempt ${attempt}/${maxRetries}): ${url}`);
                 const response: AxiosResponse<ArrayBuffer> = await axios.get(url, {
-                    httpsAgent,
+                    httpAgent,
+                    httpsAgent: insecureHttpsAgent,
                     responseType: 'arraybuffer',
                     headers: {
                         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)',
                         'Accept': 'application/pdf'
                     },
-                    timeout: 60000
+                    timeout: UPSTREAM_TIMEOUT_MS
                 });
 
                 return await this.parseReceipt(response.data);
             } catch (error: any) {
                 this.logger.warn(`Dashen receipt fetch failed (attempt ${attempt}/${maxRetries}): ${error.message}`);
 
-                if (attempt === maxRetries) {
+                // A 4xx means the receipt doesn't exist (yet); retrying won't change that.
+                const status = error.response?.status;
+                const retryable = !status || status >= 500;
+
+                if (attempt === maxRetries || !retryable) {
                     return {
                         success: false,
-                        error: `Failed to fetch receipt after ${maxRetries} attempts: ${error.message}`
+                        error: `Failed to fetch receipt after ${attempt} attempt(s): ${error.message}`
                     };
                 }
 

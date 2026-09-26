@@ -1,5 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import axios from 'axios';
+import { UPSTREAM_TIMEOUT_MS, firstValidResult, httpAgent, httpsAgent } from '../common/http';
 import pdf = require('pdf-parse');
 import { titleCase } from './verify-result.interface';
 
@@ -28,39 +29,47 @@ export class MpesaService {
         const fallbackUrl = `https://leul.et/mpesa.php?reference=${transactionId}&key=${proxyKey}`;
         const skipPrimary = process.env.SKIP_PRIMARY_VERIFICATION === 'true';
 
-        const fetchFromUrl = async (url: string, source: string): Promise<any> => {
+        const fetchFromUrl = async (url: string, source: string, signal?: AbortSignal): Promise<any> => {
             this.logger.log(`Fetching M-Pesa receipt data from ${source}`);
             const response = await axios.get(url, {
+                httpAgent,
+                httpsAgent,
+                signal,
                 headers: {
                     'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)',
                     'Accept': 'application/json, text/plain, */*',
                     'Referer': 'https://m-pesabusiness.safaricom.et/'
                 },
-                timeout: 60000
+                timeout: UPSTREAM_TIMEOUT_MS
             });
             return response.data;
         };
 
         try {
-            let data: any = null;
-
-            if (!skipPrimary) {
-                try {
-                    data = await fetchFromUrl(primaryUrl, 'primary API');
-                } catch (err: any) {
-                    this.logger.warn(`Primary M-Pesa fetch failed: ${err.message}. Trying fallback proxy...`);
-                }
-            } else {
+            if (skipPrimary) {
                 this.logger.log('Skipping primary verifier due to SKIP_PRIMARY_VERIFICATION=true');
             }
 
-            if (!data || data.responseCode !== '0' || !data.base64Data) {
+            // Keep the last unsuccessful response so its description can be reported.
+            let lastResponse: any = null;
+            const source = (url: string, name: string) => async (signal: AbortSignal) => {
                 try {
-                    data = await fetchFromUrl(fallbackUrl, 'fallback proxy');
+                    const result = await fetchFromUrl(url, name, signal);
+                    if (result) lastResponse = result;
+                    return result;
                 } catch (err: any) {
-                    this.logger.error(`M-Pesa fallback proxy request failed: ${err.message}`);
+                    if (!axios.isCancel(err)) this.logger.warn(`M-Pesa ${name} request failed: ${err.message}`);
+                    return null;
                 }
-            }
+            };
+
+            // The fallback proxy starts if the primary fails or is still pending after
+            // FALLBACK_HEDGE_DELAY_MS; the first successful response wins.
+            const data = (await firstValidResult(
+                skipPrimary ? null : source(primaryUrl, 'primary API'),
+                [source(fallbackUrl, 'fallback proxy')],
+                result => result.responseCode === '0' && Boolean(result.base64Data),
+            )) ?? lastResponse;
 
             if (!data) {
                 return {

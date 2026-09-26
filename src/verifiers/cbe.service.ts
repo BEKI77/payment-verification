@@ -1,6 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import axios, { AxiosResponse } from 'axios';
-import * as https from 'https';
+import { UPSTREAM_TIMEOUT_MS, httpAgent, insecureHttpsAgent } from '../common/http';
 import pdf = require('pdf-parse');
 import { VerifyResult, titleCase } from './verify-result.interface';
 
@@ -62,13 +62,13 @@ export class CbeService {
     }
 
     private async verifyNew(token: string): Promise<VerifyResult> {
-        const httpsAgent = new https.Agent({ rejectUnauthorized: false });
         const url = `https://mb.cbe.com.et/api/v1/transactions/public/transaction-detail/${token}`;
 
         try {
             this.logger.log(`Attempting new CBE JSON fetch: ${url}`);
             const response = await axios.get<CBETransactionResponse>(url, {
-                httpsAgent,
+                httpAgent,
+                httpsAgent: insecureHttpsAgent,
                 headers: {
                     'Accept': 'application/json, text/plain, */*',
                     'Origin': 'https://mbreciept.cbe.com.et',
@@ -77,7 +77,7 @@ export class CbeService {
                     'x-app-id': process.env.CBE_APP_ID || 'd1292e42-7400-49de-a2d3-9731caa4c819',
                     'x-app-version': process.env.CBE_APP_VERSION || '0a01980b-9859-1369-8198-59f403820000'
                 },
-                timeout: 15000
+                timeout: UPSTREAM_TIMEOUT_MS
             });
 
             return mapNewCBEReceipt(response.data);
@@ -93,18 +93,18 @@ export class CbeService {
     private async verifyLegacy(reference: string, accountSuffix: string): Promise<VerifyResult> {
         const fullId = `${reference}${accountSuffix}`;
         const url = `https://apps.cbe.com.et:100/?id=${fullId}`;
-        const httpsAgent = new https.Agent({ rejectUnauthorized: false });
 
         try {
             this.logger.log(`Fetching CBE receipt PDF: ${url}`);
             const response: AxiosResponse<ArrayBuffer> = await axios.get(url, {
-                httpsAgent,
+                httpAgent,
+                httpsAgent: insecureHttpsAgent,
                 responseType: 'arraybuffer',
                 headers: {
                     'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)',
                     'Accept': 'application/pdf'
                 },
-                timeout: 30000
+                timeout: UPSTREAM_TIMEOUT_MS
             });
 
             return await this.parseReceipt(response.data);

@@ -1,5 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import axios, { AxiosError } from 'axios';
+import { UPSTREAM_TIMEOUT_MS, httpAgent, httpsAgent } from '../common/http';
 import { VerifyResult } from './verify-result.interface';
 
 @Injectable()
@@ -18,7 +19,9 @@ export class AbyssiniaService {
             const apiUrl = `https://cs.bankofabyssinia.com/api/onlineSlip/getDetails/?id=${reference}${suffix}`;
 
             const response = await axios.get(apiUrl, {
-                timeout: 30000,
+                timeout: UPSTREAM_TIMEOUT_MS,
+                httpAgent,
+                httpsAgent,
                 headers: {
                     'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
                     'Accept': 'application/json, text/plain, */*',

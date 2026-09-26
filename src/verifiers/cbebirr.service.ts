@@ -1,5 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import axios from 'axios';
+import { UPSTREAM_TIMEOUT_MS, httpAgent, httpsAgent } from '../common/http';
 import pdf = require('pdf-parse');
 
 export interface CBEBirrReceipt {
@@ -39,7 +40,9 @@ export class CbeBirrService {
                     ...(apiKey ? { 'Authorization': `Bearer ${apiKey}` } : {}),
                     'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
                 },
-                timeout: 30000
+                timeout: UPSTREAM_TIMEOUT_MS,
+                httpAgent,
+                httpsAgent
             });
 
             if (response.status !== 200) {
