@@ -1,7 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import axios from 'axios';
 import { UPSTREAM_TIMEOUT_MS, firstValidResult, httpAgent, httpsAgent } from '../common/http';
-import pdf = require('pdf-parse');
+import * as cpuPool from '../common/cpu-pool';
 import { titleCase } from './verify-result.interface';
 
 export interface MpesaVerifyResult {
@@ -103,8 +103,8 @@ export class MpesaService {
 
     private async parseReceipt(buffer: Buffer): Promise<MpesaVerifyResult> {
         try {
-            const parsed = await pdf(buffer);
-            const rawText = parsed.text.replace(/\s+/g, ' ').trim();
+            const parsedText = await cpuPool.pdfToText(buffer);
+            const rawText = parsedText.replace(/\s+/g, ' ').trim();
 
             const payerNameMatch = rawText.match(/PAYER NAME\s+(.*?)\s+(?:PAYER PHONE|00\d+|Addis Ababa|\+251|የከፋይ ስም)/i);
             let payerName = payerNameMatch ? payerNameMatch[1].trim() : undefined;

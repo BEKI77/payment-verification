@@ -1,7 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import axios, { AxiosResponse } from 'axios';
 import { UPSTREAM_TIMEOUT_MS, httpAgent, insecureHttpsAgent } from '../common/http';
-import pdf = require('pdf-parse');
+import * as cpuPool from '../common/cpu-pool';
 import { titleCase } from './verify-result.interface';
 
 export interface DashenVerifyResult {
@@ -77,8 +77,8 @@ export class DashenService {
 
     private async parseReceipt(buffer: ArrayBuffer): Promise<DashenVerifyResult> {
         try {
-            const parsed = await pdf(Buffer.from(buffer));
-            const rawText = parsed.text.replace(/\s+/g, ' ').trim();
+            const parsedText = await cpuPool.pdfToText(buffer);
+            const rawText = parsedText.replace(/\s+/g, ' ').trim();
 
             const senderName = rawText.match(/Sender\s*Name\s*:?\s*(.*?)\s+(?:Sender\s*Account|Account)/i)?.[1]?.trim();
             const senderAccountNumber = rawText.match(/Sender\s*Account\s*(?:Number)?\s*:?\s*([A-Z0-9\*\-]+)/i)?.[1]?.trim();

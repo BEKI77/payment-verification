@@ -1,7 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import axios, { AxiosResponse } from 'axios';
 import { UPSTREAM_TIMEOUT_MS, httpAgent, insecureHttpsAgent } from '../common/http';
-import pdf = require('pdf-parse');
+import * as cpuPool from '../common/cpu-pool';
 import { VerifyResult, titleCase } from './verify-result.interface';
 
 interface CBETransactionResponse {
@@ -116,8 +116,8 @@ export class CbeService {
 
     private async parseReceipt(buffer: ArrayBuffer): Promise<VerifyResult> {
         try {
-            const parsed = await pdf(Buffer.from(buffer));
-            const rawText = parsed.text.replace(/\s+/g, ' ').trim();
+            const parsedText = await cpuPool.pdfToText(buffer);
+            const rawText = parsedText.replace(/\s+/g, ' ').trim();
 
             let payerName = rawText.match(/Payer\s*:?\s*(.*?)\s+Account/i)?.[1]?.trim();
             let receiverName = rawText.match(/Receiver\s*:?\s*(.*?)\s+Account/i)?.[1]?.trim();

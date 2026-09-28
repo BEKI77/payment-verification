@@ -1,7 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import axios from 'axios';
 import { UPSTREAM_TIMEOUT_MS, httpAgent, httpsAgent } from '../common/http';
-import pdf = require('pdf-parse');
+import * as cpuPool from '../common/cpu-pool';
 
 export interface CBEBirrReceipt {
     customerName: string;
@@ -50,8 +50,8 @@ export class CbeBirrService {
                 return { success: false, error: `Failed to fetch receipt: HTTP ${response.status}` };
             }
 
-            const pdfData = await pdf(Buffer.from(response.data));
-            const receiptData = this.parseReceipt(pdfData.text);
+            const pdfText = await cpuPool.pdfToText(response.data);
+            const receiptData = this.parseReceipt(pdfText);
 
             if (!receiptData) {
                 this.logger.error('[CBEBirr] Failed to parse receipt data from PDF');
