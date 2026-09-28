@@ -22,5 +22,15 @@ async function bootstrap() {
   SwaggerModule.setup('docs', app, document);
 
   await app.listen(process.env.PORT ?? 3000);
+
+  // Harden keep-alive for running behind a reverse proxy (Traefik on
+  // *.app.aletcloud.com). Node's default keepAliveTimeout is only 5s, so it can
+  // close an idle socket just as the proxy reuses it, and the proxy then returns
+  // a sporadic 502. Keep these ABOVE the proxy's backend idle timeout (Traefik
+  // forwardingTimeouts.idleConnTimeout defaults to 90s) so the proxy always
+  // refreshes the connection first. headersTimeout must exceed keepAliveTimeout.
+  const server = app.getHttpServer();
+  server.keepAliveTimeout = Number(process.env.KEEP_ALIVE_TIMEOUT_MS) || 100_000;
+  server.headersTimeout = Number(process.env.HEADERS_TIMEOUT_MS) || 105_000;
 }
 bootstrap();

@@ -7,8 +7,11 @@ function envNumber(name: string, fallback: number): number {
     return raw !== undefined && raw !== '' && Number.isFinite(value) ? value : fallback;
 }
 
-// Per-request timeout for upstream receipt sources.
-export const UPSTREAM_TIMEOUT_MS = envNumber('UPSTREAM_TIMEOUT_MS', 60000);
+// Per-request timeout for upstream receipt sources. Kept low so a dead or
+// unreachable upstream fails fast and frees the request slot instead of
+// holding it open; a genuinely reachable source responds in a few seconds,
+// and slow ones are covered by the fallback hedge below. Override via env.
+export const UPSTREAM_TIMEOUT_MS = envNumber('UPSTREAM_TIMEOUT_MS', 15000);
 
 // How long to wait on the primary source before also firing the fallback proxies.
 export const FALLBACK_HEDGE_DELAY_MS = envNumber('FALLBACK_HEDGE_DELAY_MS', 3000);
